@@ -1,25 +1,26 @@
 import { competitorTargets } from './modules/inputs.js';
 import { settings } from './modules/settings.js';
 import { fetchKeywords } from './modules/fetcher.js';
-import { saveRawTargetJsons, saveMasterCsv } from './modules/storage.js';
+import { uploadRawTargetJsonsToR2, saveBrandCsvs, saveMasterCsv } from './modules/storage.js';
 
 async function run() {
   try {
     const { allItems, byTarget } = await fetchKeywords(competitorTargets, settings);
     
-    // Save the raw JSON objects immediately
-    saveRawTargetJsons(byTarget);
+    // 1. Stream the massive JSON objects directly to R2 (bypassing GitHub)
+    await uploadRawTargetJsonsToR2(byTarget);
     
-    // Deduplicate while preserving all competitor sources
+    // 2. Generate and save the sorted individual brand CSVs locally
+    saveBrandCsvs(byTarget);
+    
+    // 3. Deduplicate and merge sources for the master list
     const uniqueMap = new Map();
     allItems.forEach(item => {
       if (!item.keyword) return;
       
       if (!uniqueMap.has(item.keyword)) {
-        // First time seeing this keyword, initialize its sources array
         uniqueMap.set(item.keyword, { ...item, sources: [item.sourceBrand] });
       } else {
-        // Keyword already exists, append this new brand to its sources
         const existing = uniqueMap.get(item.keyword);
         if (!existing.sources.includes(item.sourceBrand)) {
           existing.sources.push(item.sourceBrand);
@@ -27,10 +28,10 @@ async function run() {
       }
     });
     
-    const items = Array.from(uniqueMap.values());
+    const masterItems = Array.from(uniqueMap.values());
 
-    // Sort by Difficulty (Ascending), then Volume (Descending)
-    items.sort((a, b) => {
+    // 4. Sort the master list
+    masterItems.sort((a, b) => {
       const diffA = a.keyword_properties?.keyword_difficulty ?? 101;
       const diffB = b.keyword_properties?.keyword_difficulty ?? 101;
       
@@ -41,8 +42,8 @@ async function run() {
       return volB - volA; 
     });
 
-    // Save the finalized master list
-    saveMasterCsv(items);
+    // 5. Save the master CSV locally
+    saveMasterCsv(masterItems);
   } catch (error) {
     console.error("Execution Error:", error.message);
     process.exit(1);
