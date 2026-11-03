@@ -7,19 +7,15 @@ export async function fetchKeywords(targets, settings) {
   }
 
   const auth = Buffer.from(`${login}:${password}`).toString('base64');
-
-  let baseUrl;
-  if (settings.environment === 'live') {
-    baseUrl = 'https://api.dataforseo.com';
-  } else {
-    baseUrl = 'https://sandbox.dataforseo.com';
-  }
+  const baseUrl = settings.environment === 'live' 
+    ? 'https://api.dataforseo.com' 
+    : 'https://sandbox.dataforseo.com';
     
   const endpoint = `${baseUrl}/v3/dataforseo_labs/google/keywords_for_site/live`;
 
-  let allKeywords = [];
+  let allItems = [];
+  let byTarget = {};
 
-  // Loop through each target and make a single-task request
   for (const targetUrl of targets) {
     const payload = [{
       target: targetUrl,
@@ -42,19 +38,23 @@ export async function fetchKeywords(targets, settings) {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+      throw new Error(`HTTP Error: ${response.status}`);
     }
 
     const data = await response.json();
+    let targetKeywords = [];
     
     for (const task of data.tasks || []) {
       if (task.status_code === 20000 && task.result?.[0]?.items) {
-        allKeywords.push(...task.result[0].items);
+        targetKeywords.push(...task.result[0].items);
+        allItems.push(...task.result[0].items);
       } else {
         console.warn(`Task failed for ${targetUrl}: ${task?.status_message}`);
       }
     }
+    
+    byTarget[targetUrl] = targetKeywords;
   }
 
-  return allKeywords;
+  return { allItems, byTarget };
 }
