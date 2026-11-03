@@ -1,5 +1,5 @@
 export const settings = {
-  environment: "sandbox", 
+  environment: "live", 
   location_name: "United Kingdom",
   language_name: "English",
   limit: 500,
