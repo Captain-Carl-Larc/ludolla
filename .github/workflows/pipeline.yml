@@ -1,11 +1,16 @@
-name: Ludolla Keyword Pipeline
+name: DataForSEO Keyword Pipeline
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows you to run it manually from the Actions tab
 
 jobs:
   fetch-and-store:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Crucial: Allows the bot to push the CSVs back to the repo
 
     steps:
       - name: Checkout repository
@@ -14,18 +19,27 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Create storage directory
+        run: mkdir -p storage
 
       - name: Run Pipeline
+        run: node index.js
         env:
           DATAFORSEO_LOGIN: ${{ secrets.DATAFORSEO_LOGIN }}
           DATAFORSEO_PASSWORD: ${{ secrets.DATAFORSEO_PASSWORD }}
-        run: node index.js
 
       - name: Commit CSV to Repository
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add storage/
-          git commit -m "chore: generated new keyword CSV [skip ci]" || echo "No changes to commit"
+          git commit -m "Add generated keyword CSVs" || echo "No changes to commit"
           git push
