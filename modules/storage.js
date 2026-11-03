@@ -15,12 +15,14 @@ const s3 = new S3Client({
   },
 });
 
+// Generate a random 3-character string for this specific run
+const runPrefix = Math.random().toString(36).substring(2, 5);
+
 function escapeCsv(value) {
   const str = String(value ?? '');
   return `"${str.replace(/"/g, '""')}"`;
 }
 
-// Helper to build CSV formatting cleanly for both individual and master files
 function buildCsvContent(items, includeSources = false) {
   const headers = includeSources 
     ? "Keyword,Search Volume,CPC,Competition,Difficulty,Sources\n"
@@ -43,11 +45,12 @@ function buildCsvContent(items, includeSources = false) {
   return headers + rows.join('\n');
 }
 
-// 1. Send the heavy JSON files off to Cloudflare R2
 export async function uploadRawTargetJsonsToR2(byTarget) {
   for (const [target, items] of Object.entries(byTarget)) {
     const brandName = target.replace(/^https?:\/\/(www\.)?/, '').split('.')[0];
-    const filename = `${brandName}_raw.json`;
+    
+    // Apply prefix to R2 JSON files
+    const filename = `${runPrefix}_${brandName}_raw.json`;
     
     const command = new PutObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
@@ -65,14 +68,14 @@ export async function uploadRawTargetJsonsToR2(byTarget) {
   }
 }
 
-// 2. Save sorted individual CSVs locally for GitHub to commit
 export function saveBrandCsvs(byTarget) {
   for (const [target, items] of Object.entries(byTarget)) {
     const brandName = target.replace(/^https?:\/\/(www\.)?/, '').split('.')[0];
-    const filename = `${brandName}_sorted.csv`;
+    
+    // Apply prefix to local brand CSVs
+    const filename = `${runPrefix}_${brandName}_sorted.csv`;
     const storagePath = path.join(__dirname, '..', 'storage', filename);
 
-    // Apply your standard chained sort to the individual brand files
     items.sort((a, b) => {
       const diffA = a.keyword_properties?.keyword_difficulty ?? 101;
       const diffB = b.keyword_properties?.keyword_difficulty ?? 101;
@@ -88,9 +91,9 @@ export function saveBrandCsvs(byTarget) {
   }
 }
 
-// 3. Save the deduplicated master CSV locally for GitHub to commit
 export function saveMasterCsv(items) {
-  const filename = 'master_keywords.csv';
+  // Apply prefix to local master CSV
+  const filename = `${runPrefix}_master_keywords.csv`;
   const storagePath = path.join(__dirname, '..', 'storage', filename);
   
   if (!items || items.length === 0) {
