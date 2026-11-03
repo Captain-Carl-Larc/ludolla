@@ -5,63 +5,50 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper function to keep CSV formatting consistent
-function buildCsvString(data) {
-  const headers = "Keyword,Search Volume,CPC,Competition,Difficulty\n";
-  const rows = data.map(item => {
-    const keyword = `"${item.keyword || ''}"`; 
-    const searchVolume = item.keyword_info?.search_volume || 0;
-    const cpc = item.keyword_info?.cpc || 0;
-    const competition = item.keyword_info?.competition_level || 'UNKNOWN';
-    const difficulty = item.keyword_difficulty || 0;
-    return `${keyword},${searchVolume},${cpc},${competition},${difficulty}`;
-  });
-  return headers + rows.join('\n');
+// Generate a random 3-character string for this specific run
+const runPrefix = Math.random().toString(36).substring(2, 5);
+
+function escapeCsv(value) {
+  const str = String(value ?? '');
+  return `"${str.replace(/"/g, '""')}"`;
 }
 
-export function saveRawTargetCsvs(byTarget) {
+export function saveRawTargetJsons(byTarget) {
   for (const [target, items] of Object.entries(byTarget)) {
-    if (items.length === 0) continue;
-    
-    // Extracts "pulsedigital" from "pulsedigital.health"
     const brandName = target.replace(/^https?:\/\/(www\.)?/, '').split('.')[0];
-    const filename = `${brandName}_raw.csv`;
     
-    const csvContent = buildCsvString(items);
+    // Apply the 3-character prefix to the JSON file
+    const filename = `${runPrefix}_${brandName}_raw.json`;
     const storagePath = path.join(__dirname, '..', 'storage', filename);
     
-    fs.writeFileSync(storagePath, csvContent, 'utf8');
-    console.log(`Saved ${items.length} raw keywords for ${brandName} to ${filename}`);
+    fs.writeFileSync(storagePath, JSON.stringify(items, null, 2), 'utf8');
+    console.log(`Saved raw JSON object to ${filename}`);
   }
 }
 
-export function saveToCsv(items) {
-  if (!items || items.length === 0) return;
+export function saveMasterCsv(items) {
+  // Apply the 3-character prefix to the CSV file
+  const filename = `${runPrefix}_master_keywords.csv`;
+  const storagePath = path.join(__dirname, '..', 'storage', filename);
 
-  const easy = [];
-  const medium = [];
-  const hard = [];
+  if (!items || items.length === 0) {
+    fs.writeFileSync(storagePath, "Keyword,Search Volume,CPC,Competition,Difficulty,Sources\n", 'utf8');
+    console.log(`Saved empty headers to ${filename}`);
+    return;
+  }
 
-  items.forEach(item => {
-    const difficulty = item.keyword_difficulty || 0;
-    if (difficulty <= 30) {
-      easy.push(item);
-    } else if (difficulty <= 69) {
-      medium.push(item);
-    } else {
-      hard.push(item);
-    }
+  const headers = "Keyword,Search Volume,CPC,Competition,Difficulty,Sources\n";
+  const rows = items.map(item => {
+    const keyword = escapeCsv(item.keyword);
+    const searchVolume = item.keyword_info?.search_volume ?? 0;
+    const cpc = item.keyword_info?.cpc ?? 0;
+    const competition = item.keyword_info?.competition_level ?? 'UNKNOWN';
+    const difficulty = item.keyword_properties?.keyword_difficulty ?? '';
+    const sources = escapeCsv(item.sources.join(' | '));
+
+    return `${keyword},${searchVolume},${cpc},${competition},${difficulty},${sources}`;
   });
 
-  const writeCsv = (data, filename) => {
-    if (data.length === 0) return;
-    const csvContent = buildCsvString(data);
-    const storagePath = path.join(__dirname, '..', 'storage', filename);
-    fs.writeFileSync(storagePath, csvContent, 'utf8');
-    console.log(`Successfully saved ${data.length} unique keywords to ${filename}`);
-  };
-
-  writeCsv(easy, 'dental_keywords_easy_0_30.csv');
-  writeCsv(medium, 'dental_keywords_medium_31_69.csv');
-  writeCsv(hard, 'dental_keywords_hard_70_100.csv');
+  fs.writeFileSync(storagePath, headers + rows.join('\n'), 'utf8');
+  console.log(`Saved ${items.length} deduplicated keywords to ${filename}`);
 }

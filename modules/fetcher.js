@@ -3,7 +3,7 @@ export async function fetchKeywords(targets, settings) {
   const password = process.env.DATAFORSEO_PASSWORD;
 
   if (!login || !password) {
-    throw new Error("Missing DATAFORSEO_LOGIN or DATAFORSEO_PASSWORD environment variables.");
+    throw new Error("Missing DATAFORSEO_LOGIN or DATAFORSEO_PASSWORD variables.");
   }
 
   const auth = Buffer.from(`${login}:${password}`).toString('base64');
@@ -17,6 +17,8 @@ export async function fetchKeywords(targets, settings) {
   let byTarget = {};
 
   for (const targetUrl of targets) {
+    const brandName = targetUrl.replace(/^https?:\/\/(www\.)?/, '').split('.')[0];
+    
     const payload = [{
       target: targetUrl,
       location_name: settings.location_name,
@@ -26,7 +28,7 @@ export async function fetchKeywords(targets, settings) {
       include_serp_info: settings.include_serp_info
     }];
 
-    console.log(`Fetching site keywords for ${targetUrl} (${settings.environment} mode)...`);
+    console.log(`Fetching keywords for ${brandName} (${settings.environment})...`);
     
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -37,19 +39,26 @@ export async function fetchKeywords(targets, settings) {
       body: JSON.stringify(payload)
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP Error: ${response.status}`);
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    const data = await response.json();
+    
+    // Top-level API validation
+    if (data.status_code !== 20000) {
+      throw new Error(`DataForSEO Error: ${data.status_message}`);
     }
 
-    const data = await response.json();
     let targetKeywords = [];
     
     for (const task of data.tasks || []) {
       if (task.status_code === 20000 && task.result?.[0]?.items) {
-        targetKeywords.push(...task.result[0].items);
-        allItems.push(...task.result[0].items);
+        task.result[0].items.forEach(item => {
+          // Tag the item with its source brand before saving
+          item.sourceBrand = brandName;
+          targetKeywords.push(item);
+          allItems.push(item);
+        });
       } else {
-        console.warn(`Task failed for ${targetUrl}: ${task?.status_message}`);
+        console.warn(`Task failed for ${brandName}: ${task?.status_message}`);
       }
     }
     
