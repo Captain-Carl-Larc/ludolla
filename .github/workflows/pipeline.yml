@@ -4,13 +4,13 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Allows you to run it manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
   fetch-and-store:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Crucial: Allows the bot to push the CSVs back to the repo
+      contents: write 
 
     steps:
       - name: Checkout repository
@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22' # Upgraded to resolve the security warning
 
       - name: Install pnpm
         run: npm install -g pnpm
@@ -35,6 +35,11 @@ jobs:
         env:
           DATAFORSEO_LOGIN: ${{ secrets.DATAFORSEO_LOGIN }}
           DATAFORSEO_PASSWORD: ${{ secrets.DATAFORSEO_PASSWORD }}
+          # Mapped R2 secrets to the environment variables expected by storage.js
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
 
       - name: Commit CSV to Repository
         run: |
